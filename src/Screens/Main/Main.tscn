@@ -1,0 +1,330 @@
+[gd_scene load_steps=13 format=2]
+
+[ext_resource path="res://me.png" type="Texture" id=1]
+[ext_resource path="res://Screens/Main/Main.gd" type="Script" id=2]
+
+[sub_resource type="Shader" id=5]
+code = "shader_type canvas_item;
+
+uniform vec2 offset = vec2(0.);
+const vec2 grid_cells = vec2(20., 30.);
+
+
+float random(vec2 uv) {
+	return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453123);
+}
+
+float barcode(vec2 uv) {
+	vec2 ipos = floor(uv);
+	vec2 fpos = fract(uv);
+	
+	float rnd = step(random(vec2(ipos.y, 0.)), random(ipos));
+	
+	return rnd;
+}
+
+
+void fragment(){
+	vec2 uv = UV; 
+	uv *= grid_cells;
+	
+	float pattern = barcode(uv);
+	float offset_pattern = barcode(uv + offset);
+
+    COLOR = texture(SCREEN_TEXTURE, SCREEN_UV + (pattern - offset_pattern) * .1);
+}"
+
+[sub_resource type="ShaderMaterial" id=6]
+shader = SubResource( 5 )
+shader_param/offset = Vector2( 0, 0 )
+
+[sub_resource type="Shader" id=1]
+code = "shader_type canvas_item;
+
+uniform vec2 r_offset;
+uniform vec2 g_offset;
+uniform vec2 b_offset;
+
+void fragment() {
+	float r = texture(SCREEN_TEXTURE, SCREEN_UV + r_offset).r;
+	float g = texture(SCREEN_TEXTURE, SCREEN_UV + g_offset).g;
+	float b = texture(SCREEN_TEXTURE, SCREEN_UV + b_offset).b;
+	
+	COLOR.rgb = vec3(r, g, b);
+}"
+
+[sub_resource type="ShaderMaterial" id=2]
+shader = SubResource( 1 )
+shader_param/r_offset = null
+shader_param/g_offset = null
+shader_param/b_offset = null
+
+[sub_resource type="Shader" id=7]
+code = "shader_type canvas_item;
+
+uniform vec2 offset = vec2(0.);
+const vec2 grid_cells = vec2(20., 30.);
+
+
+vec2 random2(vec2 uv) {
+	uv = vec2(dot(uv, vec2(127.1, 311.7)), dot(uv, vec2(269.5, 183.3)));
+	return -1. + 2. * fract(sin(uv) * 43758.5453123);
+}
+
+float g_noise (vec2 uv) {
+	vec2 i = floor(uv);
+	vec2 f = fract(uv);
+	
+	vec2 u = smoothstep(0., 1., f);
+	
+	return mix( mix( dot( random2(i + vec2(0.0,0.0) ), f - vec2(0.0,0.0) ),
+                     dot( random2(i + vec2(1.0,0.0) ), f - vec2(1.0,0.0) ), u.x),
+                mix( dot( random2(i + vec2(0.0,1.0) ), f - vec2(0.0,1.0) ),
+                     dot( random2(i + vec2(1.0,1.0) ), f - vec2(1.0,1.0) ), u.x), u.y);
+}
+
+
+void fragment(){
+	vec2 uv = UV;
+	
+	vec3 color = mix(vec3(.8, 0., 0.1), vec3(.6, 0.3, 0.02), UV.y);
+	float noise = g_noise(uv * 3. + vec2(0., TIME * .3)) * .9;
+	float stepped_noise = smoothstep(noise, noise - .7, .1);
+	vec3 tex = texture(SCREEN_TEXTURE, SCREEN_UV + stepped_noise).rgb;
+	color = mix(tex, color, stepped_noise);
+
+    COLOR.rgb = tex;
+}"
+
+[sub_resource type="ShaderMaterial" id=8]
+shader = SubResource( 7 )
+shader_param/offset = Vector2( 0, 0 )
+
+[sub_resource type="Shader" id=3]
+code = "shader_type canvas_item;
+
+uniform vec2 z_offset = vec2(-1.5);
+uniform vec2 in_c_offset = vec2(-.4, .6);
+uniform float zoom = 3.;
+
+vec2 random2(vec2 uv) {
+	uv = vec2(dot(uv, vec2(127.1, 311.7)), dot(uv, vec2(269.5, 183.3)));
+	return -1. + 2. * fract(sin(uv) * 43758.5453123);
+}
+
+float g_noise (vec2 uv) {
+	vec2 i = floor(uv);
+	vec2 f = fract(uv);
+	
+	vec2 u = smoothstep(0., 1., f);
+	
+	return mix( mix( dot( random2(i + vec2(0.0,0.0) ), f - vec2(0.0,0.0) ),
+                     dot( random2(i + vec2(1.0,0.0) ), f - vec2(1.0,0.0) ), u.x),
+                mix( dot( random2(i + vec2(0.0,1.0) ), f - vec2(0.0,1.0) ),
+                     dot( random2(i + vec2(1.0,1.0) ), f - vec2(1.0,1.0) ), u.x), u.y);
+}
+
+float julia(vec2 uv, vec2 c_offset) {
+	float max_iter = 50.;
+	
+	vec2 c = c_offset;
+	vec2 z = uv * zoom + z_offset;
+
+	float i = 0.;
+	
+	for (i; i < max_iter; i++) {
+		z = vec2(z.x * z.x - z.y * z.y, 2. * z.x * z.y) + c;
+		
+		if (length(z) > 2.) break;
+	}
+	
+	return i / max_iter;
+}
+
+void fragment() {
+	float factor = clamp(julia(UV, vec2(-.42, .61)) - julia(UV, in_c_offset), 0., 1.);
+	float noise = g_noise(UV * 3.) * factor;
+	COLOR = texture(SCREEN_TEXTURE, SCREEN_UV + noise);
+	//COLOR.rgb = vec3(julia(UV, vec2(-.42, .61)));
+}
+"
+
+[sub_resource type="ShaderMaterial" id=4]
+shader = SubResource( 3 )
+shader_param/z_offset = Vector2( 0.2, 0.08 )
+shader_param/in_c_offset = Vector2( -0.41, 0.61 )
+shader_param/zoom = 0.03
+
+[sub_resource type="Shader" id=9]
+code = "shader_type canvas_item;
+
+uniform float offset_angle = 0.;
+
+float rectangle(vec2 position, vec2 size, vec2 uv) {
+	vec2 cut = step(position, uv) - step(position + size, uv);
+	
+	return cut.x * cut.y;
+}
+
+float cross_rect(vec2 position, float size, float thicness, vec2 uv) {
+	
+	return clamp(rectangle(vec2(position.x, position.y + size / 2. - thicness / 2.0), vec2(size, thicness), uv) + rectangle(vec2(position.x + size / 2. - thicness / 2.0, position.y), vec2(thicness, size), uv), 0., 1.);
+}
+
+vec2 rotate2D(vec2 uv, float angle) {
+	uv -= .5;
+	uv = mat2(vec2(cos(angle), -sin(angle)), vec2(sin(angle), cos(angle))) * uv;
+	uv += .5;
+	return uv;
+}
+
+
+void fragment(){
+	vec2 uv = fract(UV * 4.0);
+	
+    vec3 color = texture(SCREEN_TEXTURE, SCREEN_UV).rgb;
+	
+	uv = rotate2D(uv, offset_angle);
+	float cross_shape = cross_rect(vec2(.25, .25), .5, .2, uv);
+	vec2 rot_uv = rotate2D(SCREEN_UV, offset_angle);
+	
+	color = mix(color, texture(SCREEN_TEXTURE, rot_uv).rgb, cross_shape);
+
+    COLOR.rgb = color;
+}"
+
+[sub_resource type="ShaderMaterial" id=10]
+shader = SubResource( 9 )
+shader_param/offset_angle = 0.0
+
+[node name="Main" type="Node2D"]
+script = ExtResource( 2 )
+
+[node name="Me" type="Sprite" parent="."]
+position = Vector2( 361, 361 )
+scale = Vector2( 1.438, 1.438 )
+texture = ExtResource( 1 )
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+margin_left = 772.0
+margin_top = 8.0
+margin_right = 1168.0
+margin_bottom = 695.0
+
+[node name="RSlider" type="HSlider" parent="VBoxContainer"]
+margin_right = 396.0
+margin_bottom = 16.0
+min_value = -1.0
+max_value = 1.0
+step = 0.01
+
+[node name="GSlider" type="HSlider" parent="VBoxContainer"]
+margin_top = 20.0
+margin_right = 396.0
+margin_bottom = 36.0
+min_value = -1.0
+max_value = 1.0
+step = 0.01
+
+[node name="BSlider" type="HSlider" parent="VBoxContainer"]
+margin_top = 40.0
+margin_right = 396.0
+margin_bottom = 56.0
+min_value = -1.0
+max_value = 1.0
+step = 0.01
+
+[node name="ZXSlider" type="HSlider" parent="VBoxContainer"]
+margin_top = 60.0
+margin_right = 396.0
+margin_bottom = 76.0
+min_value = -0.45
+max_value = -0.4
+step = 0.001
+value = -0.45
+
+[node name="ZYSlider" type="HSlider" parent="VBoxContainer"]
+visible = false
+margin_top = 80.0
+margin_right = 396.0
+margin_bottom = 96.0
+min_value = 0.55
+max_value = 0.65
+step = 0.001
+value = 0.55
+
+[node name="NoiseTrainYSlider" type="HSlider" parent="VBoxContainer"]
+margin_top = 80.0
+margin_right = 396.0
+margin_bottom = 96.0
+min_value = -1.0
+max_value = 1.0
+step = 0.01
+
+[node name="NoiseTrainXSlider" type="HSlider" parent="VBoxContainer"]
+margin_top = 100.0
+margin_right = 396.0
+margin_bottom = 116.0
+min_value = -10.0
+max_value = 10.0
+step = 0.1
+
+[node name="CrossAngleSlider" type="HSlider" parent="VBoxContainer"]
+margin_top = 120.0
+margin_right = 396.0
+margin_bottom = 136.0
+min_value = -10.0
+max_value = 10.0
+step = 0.1
+
+[node name="BackBufferCopy3" type="BackBufferCopy" parent="."]
+rect = Rect2( 0, 0, 720, 720 )
+
+[node name="NoiseTrain" type="ColorRect" parent="BackBufferCopy3"]
+material = SubResource( 6 )
+margin_right = 720.0
+margin_bottom = 720.0
+
+[node name="BackBufferCopy" type="BackBufferCopy" parent="."]
+rect = Rect2( 0, 0, 720, 720 )
+
+[node name="ColorSplitter" type="ColorRect" parent="BackBufferCopy"]
+material = SubResource( 2 )
+margin_right = 720.0
+margin_bottom = 720.0
+mouse_filter = 2
+
+[node name="BackBufferCopy4" type="BackBufferCopy" parent="."]
+rect = Rect2( 0, 0, 720, 720 )
+
+[node name="Noise" type="ColorRect" parent="BackBufferCopy4"]
+material = SubResource( 8 )
+margin_right = 720.0
+margin_bottom = 720.0
+
+[node name="BackBufferCopy2" type="BackBufferCopy" parent="."]
+rect = Rect2( 0, 0, 720, 720 )
+
+[node name="Fractal" type="ColorRect" parent="BackBufferCopy2"]
+material = SubResource( 4 )
+margin_right = 720.0
+margin_bottom = 720.0
+mouse_filter = 2
+
+[node name="BackBufferCopy5" type="BackBufferCopy" parent="."]
+rect = Rect2( 0, 0, 720, 720 )
+
+[node name="Grid" type="ColorRect" parent="BackBufferCopy5"]
+material = SubResource( 10 )
+margin_right = 720.0
+margin_bottom = 720.0
+mouse_filter = 2
+
+[connection signal="value_changed" from="VBoxContainer/RSlider" to="." method="_on_RXSlider_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/GSlider" to="." method="_on_GSlider_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/BSlider" to="." method="_on_BSlider_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/ZXSlider" to="." method="_on_ZXSlider_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/ZYSlider" to="." method="_on_ZYSlider_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/NoiseTrainYSlider" to="." method="_on_NoiseTrainYSlider_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/NoiseTrainXSlider" to="." method="_on_NoiseTrainXSlider_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/CrossAngleSlider" to="." method="_on_CrossAngleSlider_value_changed"]
